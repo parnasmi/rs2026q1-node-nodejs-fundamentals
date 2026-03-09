@@ -3,6 +3,7 @@ import fs from "fs/promises";
 import { createReadStream } from "fs";
 import { createHash } from "crypto";
 import { fileURLToPath } from "url";
+import { pipeline } from "stream/promises";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -17,16 +18,13 @@ const verify = async () => {
     throw new Error("FS operation failed");
   }
 
-  const checksums = JSON.parse(await fs.readFile(checksumsPath, "utf8"));
+  const checksumsContent = await fs.readFile(checksumsPath, "utf8");
+  const checksums = JSON.parse(checksumsContent);
 
-  const calculateHash = (filePath) => {
-    return new Promise((resolve, reject) => {
-      const hash = createHash("sha256");
-      const stream = createReadStream(filePath);
-      stream.on("data", (data) => hash.update(data));
-      stream.on("end", () => resolve(hash.digest("hex")));
-      stream.on("error", (err) => reject(err));
-    });
+  const calculateHash = async (filePath) => {
+    const hash = createHash("sha256");
+    await pipeline(createReadStream(filePath), hash);
+    return hash.digest("hex");
   };
 
   for (const [fileName, expectedHash] of Object.entries(checksums)) {
